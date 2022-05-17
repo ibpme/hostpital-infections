@@ -37,6 +37,8 @@ class Patient:
         self.time = 0
         # Time after screening/testing
         self.result_time = None
+        # Treatment Probability
+        self.treatment_prob = 0.3
 
     @property
     def remaining_stay(self):
@@ -55,7 +57,9 @@ class Patient:
         if self.colonisation_status == 1:
             raise Exception("Patient already colonised")
         self.colonisation_status = np.random.choice([1, 0], p=[prob, 1-prob])
-        return self.colonisation_status
+        if self.colonisation_status:
+            return self
+        return
 
     def screen_test(self, length=2, interval=3):
         """Apply screening process to patient with a certain interval with (length) of time until result"""
@@ -83,7 +87,7 @@ class Patient:
             return True
         return False
 
-    def give_treatment(self, prob=0.9):
+    def give_treatment(self, prob=0.3):
         """
         This function will heal the paient given a probability 
         for patient to recover from the disease and discharged.
@@ -118,6 +122,9 @@ class PatientGenerator:
         self._gamma_k = gamma_k
         self._gamma_scale = gamma_scale
         self._colonized_prob = colonized_prob
+        self.reset_history()
+
+    def reset_history(self):
         self.history = {
             "admission_sequence": np.array([]),
             "length_stay_dist": np.array([], dtype=int),
@@ -132,7 +139,7 @@ class PatientGenerator:
         self._gamma_k = gamma_k
         self._gamma_scale = gamma_scale
 
-    def generate(self, colonized_prob: float = None) -> "list[Patient]":
+    def generate(self, colonized_prob: float = None) -> List[Patient]:
         """Generate list of patients to be admited to the ward usually in one time unit
         On admission, the patient has a certain probability of
         being colonised with MRSA (ie, primary case) or not
@@ -156,20 +163,14 @@ class PatientGenerator:
         length_stay_sequence = np.random.gamma(
             self._gamma_k, scale=self._gamma_scale, size=num_admit_patients)
         colonized_status_sequence = np.random.choice(
-            [1, 0], p=[colonized_prob, 1-colonized_prob], size=num_admit_patients,)
+            [1, 0], p=[colonized_prob, 1-colonized_prob], size=num_admit_patients)
         patients_array = []
         for status, length_stay in zip(colonized_status_sequence, length_stay_sequence):
             patients_array.append(
                 Patient(colonisation_status=status, length_stay=length_stay))
-        self.history["admission_sequence"] = np.append(
-            self.history["admission_sequence"], num_admit_patients)
-        self.history["length_stay_dist"] = np.append(
-            self.history["length_stay_dist"], length_stay_sequence)
-        self.history["colonized_sequence"] = np.append(
-            self.history["colonized_sequence"], int(sum(colonized_status_sequence)))
         return patients_array
 
-    def generate_sequence(self, colonized_prob: float = None, time=350) -> "list[Patient]":
+    def generate_sequence(self, colonized_prob: float = None, time=350) -> List[Patient]:
         """Generate list of patients to be admited to the ward inside sequence 
 
         Parameters
@@ -185,7 +186,12 @@ class PatientGenerator:
         if not colonized_prob and colonized_prob != 0:
             colonized_prob = self._colonized_prob
         patient_sequence = [self.generate(
-            colonized_prob=colonized_prob) for _i in range(time)]
+            colonized_prob=colonized_prob) for _ in range(time)]
+        for patient_arr in patient_sequence:
+            self.history["admission_sequence"] = np.append(
+                self.history["admission_sequence"], len(patient_arr))
+            self.history["length_stay_dist"] = np.append(self.history["length_stay_dist"], [
+                patient.length_stay for patient in patient_arr])
         return patient_sequence
 
     def show_admit(self):

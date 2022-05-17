@@ -4,7 +4,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from .patient import Patient
-    from .bay import IsolationBay, Bay
+    from .bay import Bay
 
 
 class Ward:
@@ -15,20 +15,28 @@ class Ward:
                 "Please initialize transmission variables C,V,m and k ")
         self.bays = bays
 
+        # self.history = {
+        #     "admission_sequence": np.array([]),
+        #     "colonized_sequence": np.array([], dtype=int),
+        #     "new_infection_sequence": np.array([], dtype=int),
+        #     "lambda": np.array([])
+        # }
         self.history = {
-            "admission_sequence": np.array([]),
-            "colonized_sequence": np.array([], dtype=int),
-            "new_infection_sequence": np.array([], dtype=int),
-            "lambda": np.array([])
+            "admission": [],
+            "colonized": [],
+            "new_infections": [],
+            "total": [],
         }
 
-        self.new_infections = 0
-        self.lambda_seq = []
+        self.time = 0
 
         self.C = params["C"]
         self.V = params["V"]
         self.m = params["m"]
         self.k = params["k"]
+
+        # Treatment Probability
+        self.treatment_prob = 0.3
 
     @property
     def capacity(self):
@@ -63,6 +71,16 @@ class Ward:
         return col_patients
 
     @property
+    def patients(self) -> List[Patient]:
+        all_patients = []
+        if not self.bays:
+            return all_patients
+        for bay in self.bays:
+            for patient in bay.patients:
+                all_patients.append(patient)
+        return all_patients
+
+    @property
     def total_patients(self) -> List[Patient]:
         """Total patients inside bays in ward"""
         patients = 0
@@ -81,10 +99,13 @@ class Ward:
                 col_patients += patient.colonisation_status
         return col_patients
 
+    def set_treatment_prob(self, prob: float):
+        self.treatment_prob = prob
+
     def admit_patient(self, patient):
         """Method for admiting patient.
-        We use this, globally when admiting patients without worrying about 
-        how the patient is admited. 
+        We use this, globally when admiting patients without worrying about
+        how the patient is admited.
         We also implement how each patient is assigned to a bay here.
 
         Parameters
@@ -92,7 +113,7 @@ class Ward:
         patient : Patient
             patient to be admited
         returns:
-            boolean if the patient is admited 
+            boolean if the patient is admited
         """
 
         # Choose an available bay for patient i
@@ -108,29 +129,30 @@ class Ward:
                     return True
             else:
                 bay.add_patient(patient)
-                return True
+                return patient
         else:
             # All bays are full / not available
-            return False
+            return None
 
     def admit_patients(self, patients: List[Patient]) -> int:
-        """Same as admit_patient but takes an array
+        """Same as admit_patient but takes an array and updates history
 
         Parameters
         ----------
         patients : [Patients]
             list of patients
-        k: shape of gamma distribution
-        scale : scale of gamma distribution
-
         returns:
             number of patient not admited
         """
         patients_not_admited = 0
+        patients_admited = []
         for patient in patients:
             patient_admited = self.admit_patient(patient)
             if not patient_admited:
                 patients_not_admited += 1
+            else:
+                patients_admited.append(patient_admited)
+        self.update_history("admission", patients_admited)
         return patients_not_admited
 
     def remove_patients(self) -> int:
@@ -208,32 +230,29 @@ class Ward:
         """Generate the transmission reaction for each patient inside the ward.
         This function generates new infections.
         """
-        new_infections = 0
-        lambda_arr = []
+        new_infections = []
         suc_patient_arr = self.suc_patients
         col_patient_arr = self.col_patients
         for suc_patient in suc_patient_arr:
             for col_patient in col_patient_arr:
                 trans_prob = self.exp_trans_prob(
                     self.transmission_prob(col_patient, suc_patient))
-                status = suc_patient.infect_prob(trans_prob)
-                lambda_arr.append(trans_prob)
-                new_infections += status
-                if status:
+                new_infection = suc_patient.infect_prob(trans_prob)
+                if new_infection:
+                    new_infections.append(new_infection)
                     break
             continue
-        self.new_infections = new_infections
-        self.lambda_seq = lambda_arr
-        return new_infections
+        self.update_history("new_infections", new_infections)
+        return
 
     def generate_treatment(self):
         """Generate treatment for each patient"""
         for bay in self.bays:
             for patient in bay.patients:
                 if patient.detection_status == 1:
-                    healed = patient.give_treatment()
+                    healed = patient.give_treatment(self.treatment_prob)
                     if healed:
-                        self.remove_patients(patient)
+                        bay.remove_patient(patient)
 
     def screen_patients_get_results(self):
         """Screen each patient in ward is patient is not screened yet
@@ -244,19 +263,23 @@ class Ward:
                 if patient.result_time:
                     patient.get_result()
 
-    def update_history(self):
+    def update_history(self, history_key, data):
         """History of patients state sequence"""
-        self.history["admission_sequence"] = np.append(
-            self.history["admission_sequence"], self.total_patients)
-        self.history["colonized_sequence"] = np.append(
-            self.history["colonized_sequence"], self.total_col_patients)
-        self.history["new_infection_sequence"] = np.append(
-            self.history["new_infection_sequence"], self.new_infections)
-        self.history["lambda"] = np.append(
-            self.history["lambda"], self.lambda_seq)
+        if history_key in self.history.keys():
+            self.history[history_key].append(data)
+
+    def history_sequence(self):
+        hist_seq = dict()
+        for history_key in self.history:
+            hist_seq[history_key] = [
+                len(patients) for patients in self.history[history_key]]
+        return hist_seq
 
     def forward_time(self):
         """Forward all patient time"""
+        self.update_history("colonized", self.col_patients)
+        self.update_history("total", self.patients)
+        self.time += 1
         for bay in self.bays:
             for patient in bay.patients:
                 patient.time += 1
