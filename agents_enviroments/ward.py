@@ -1,42 +1,27 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List
+from agents_enviroments.parameters import Parameters
 import numpy as np
 
 if TYPE_CHECKING:
     from .patient import Patient
     from .bay import Bay
+    from .history import History
 
 
 class Ward:
 
-    def __init__(self, bays: List[Bay], **params):
-        if not params:
-            raise TypeError(
-                "Please initialize transmission variables C,V,m and k ")
+    def __init__(self, bays: List[Bay], params: Parameters):
         self.bays = bays
-
-        # self.history = {
-        #     "admission_sequence": np.array([]),
-        #     "colonized_sequence": np.array([], dtype=int),
-        #     "new_infection_sequence": np.array([], dtype=int),
-        #     "lambda": np.array([])
-        # }
-        self.history = {
-            "admission": [],
-            "colonized": [],
-            "new_infections": [],
-            "total": [],
-        }
-
+        self.params = params
+        # Dynamic Atributes in ward for Patients Status
+        self.new_patients: List[Patient] = []
+        self.new_infections: List[Patient] = []
+        self.screened_patients: List[Patient] = []
+        self.new_detected_patients: List[Patient] = []
+        self.patients_removed: List[Patient] = []
+        self.healed_patients: List[Patient] = []
         self.time = 0
-
-        self.C = params["C"]
-        self.V = params["V"]
-        self.m = params["m"]
-        self.k = params["k"]
-
-        # Treatment Probability
-        self.treatment_prob = 0.3
 
     @property
     def capacity(self):
@@ -60,7 +45,7 @@ class Ward:
 
     @property
     def col_patients(self) -> List[Patient]:
-        """Colonized patients inside bays in ward"""
+        """Colonized patients inside bays in ward (detected)"""
         col_patients = []
         if not self.bays:
             return col_patients
@@ -69,6 +54,10 @@ class Ward:
                 if patient.colonisation_status == 1:
                     col_patients.append(patient)
         return col_patients
+
+    @property
+    def total_new_infections(self):
+        return len(self.new_infections)
 
     @property
     def patients(self) -> List[Patient]:
@@ -92,15 +81,12 @@ class Ward:
 
     @property
     def total_col_patients(self) -> List[Patient]:
-        """Total colonized patients inside bays in ward"""
+        """Total colonized patients inside bays in ward (detected)"""
         col_patients = 0
         for bay in self.bays:
             for patient in bay.patients:
                 col_patients += patient.colonisation_status
         return col_patients
-
-    def set_treatment_prob(self, prob: float):
-        self.treatment_prob = prob
 
     def admit_patient(self, patient):
         """Method for admiting patient.
@@ -122,7 +108,7 @@ class Ward:
             if bay.is_full:
                 continue
             if isinstance(bay, IsolationBay):
-                prob = 0.01
+                prob = self.params.isolation_prob
                 # Isolation bay probability
                 if np.random.choice([1, 0], p=[prob, 1-prob]):
                     bay.add_patient(patient)
@@ -152,18 +138,19 @@ class Ward:
                 patients_not_admited += 1
             else:
                 patients_admited.append(patient_admited)
-        self.update_history("admission", patients_admited)
+        self.new_patients = patients_admited
         return patients_not_admited
 
     def remove_patients(self) -> int:
         """Discharge/remove patients when length of stay is met
         """
-        patients_removed = 0
+        patients_removed = []
         for bay in self.bays:
             for patient in bay.patients:
                 if patient.remaining_stay == 0:
                     bay.remove_patient(patient)
-                    patients_removed += 1
+                    patients_removed.append(patient)
+        self.patients_removed = patients_removed
         return patients_removed
 
     def change_patient_location(self, patient: Patient, new_bay: Bay):
@@ -194,10 +181,10 @@ class Ward:
         if patient_s.colonisation_status == 1:
             raise Exception("patient_s is not a suceptible patient")
 
-        C = self.C
-        V = self.V
-        m = self.m
-        k = self.k
+        C = self.params.C
+        V = self.params.V
+        m = self.params.m
+        k = self.params.k
         n_ward = self.total_patients
 
         s_bay = patient_s.location
@@ -228,7 +215,7 @@ class Ward:
 
     def generate_transmission(self):
         """Generate the transmission reaction for each patient inside the ward.
-        This function generates new infections.
+        This function generates new infections. (Undetected)
         """
         new_infections = []
         suc_patient_arr = self.suc_patients
@@ -242,47 +229,63 @@ class Ward:
                     new_infections.append(new_infection)
                     break
             continue
-        self.update_history("new_infections", new_infections)
+        self.new_infections = new_infections
         return
 
     def generate_treatment(self):
-        """Generate treatment for each patient"""
+        """Generate treatment for each patient and remove if patient is healed"""
+        healed_patients = []
         for bay in self.bays:
             for patient in bay.patients:
                 if patient.detection_status == 1:
-                    healed = patient.give_treatment(self.treatment_prob)
+                    healed = patient.give_treatment(self.params.treatment_prob)
                     if healed:
-                        bay.remove_patient(patient)
+                        healed_patients.append(healed)
+        self.healed_patients = healed_patients
 
-    def screen_patients_get_results(self):
+    def screen_patients(self):
         """Screen each patient in ward is patient is not screened yet
-         and get the result if available"""
+        This might change the patient detection status
+         """
+        screened_patients = []
         for bay in self.bays:
             for patient in bay.patients:
-                patient.screen_test()
-                if patient.result_time:
-                    patient.get_result()
+                screened_patient = patient.screen_test()
+                if screened_patient:
+                    screened_patients.append(screened_patient)
+        self.screened_patients = screened_patients
 
-    def update_history(self, history_key, data):
-        """History of patients state sequence"""
-        if history_key in self.history.keys():
-            self.history[history_key].append(data)
-
-    def history_sequence(self):
-        hist_seq = dict()
-        for history_key in self.history:
-            hist_seq[history_key] = [
-                len(patients) for patients in self.history[history_key]]
-        return hist_seq
+    def get_patient_results(self):
+        """Get the result if available.
+        This might change the patient detection status
+         """
+        detected_patients = []
+        for bay in self.bays:
+            for patient in bay.patients:
+                detected = patient.get_result()
+                detected_patients.append(detected)
+        self.new_detected_patients = detected_patients
 
     def forward_time(self):
         """Forward all patient time"""
-        self.update_history("colonized", self.col_patients)
-        self.update_history("total", self.patients)
         self.time += 1
         for bay in self.bays:
             for patient in bay.patients:
                 patient.time += 1
+
+    def history_dict(self):
+        "Save the state of the ward and patients to history in dictionary"
+        hist = {
+            "new_patients": len(self.new_patients),
+            "colonized": self.total_col_patients,
+            "new_infections": len(self.new_infections),
+            "screened_patients": len(self.screened_patients),
+            "new_detected_patients": len(self.new_detected_patients),
+            "removed_patients": len(self.patients_removed),
+            "healed_patients": len(self.healed_patients),
+            "total": self.total_patients
+        }
+        return hist
 
     def occupancy_stats(self):
         """Show current patients capacity"""
@@ -295,6 +298,7 @@ class Ward:
         return stats
 
     def move_patients(self):
+        # Make a movement strategy for the patients
         for bay in self.bays:
             for patient in bay.patients:
                 pass

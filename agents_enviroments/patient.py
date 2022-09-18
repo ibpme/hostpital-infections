@@ -26,7 +26,7 @@ class Patient:
         self.colonisation_status = colonisation_status
         self.detection_status = detection_status
         self.decolonisation_status = decolonisation_status
-        self.hidden_detection_status = None
+        # self.hidden_detection_status = None
         self.location = None
         # According to the paper this will have an inital gamma distribution and will change as each time interval passes.
         # Used to avoid 0 time length of stay
@@ -72,7 +72,7 @@ class Patient:
                 self.detection_status = 2
                 # Test 100% sensitivity (hidden detection is set to remember the state of colonized patient)
                 self.hidden_detection_status = self.colonisation_status
-                return True
+                return self
         return False
 
     def get_result(self):
@@ -84,19 +84,21 @@ class Patient:
             self.detection_status = self.hidden_detection_status
             self.result_time = None
             self.hidden_detection_status = None
-            return True
+            return self
         return False
 
-    def give_treatment(self, prob=0.3):
+    def give_treatment(self, prob=0.6):
         """
         This function will heal the paient given a probability 
         for patient to recover from the disease and discharged.
+        Note : Giving treament should be a increasing probability with respect to 
+        the time patients is in the ward
         """
         healed = np.random.choice([1, 0], p=[prob, 1-prob])
         if healed:
             self.colonisation_status = 0
             self.detection_status = 0
-        return healed
+        return self
 
     def __repr__(self):
         if self.location:
