@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from numpy import ndarray
 import numpy as np
@@ -42,3 +43,15 @@ class History:
             self.add(key, value)
         self.time.append(self.current_time)
         self.current_time += 1
+
+    def reset(self):
+        self.new_patients: ndarray = np.array([])
+        self.colonized: ndarray = np.array([])
+        self.new_infections: ndarray = np.array([])
+        self.total: ndarray = np.array([])
+        self.new_detected: ndarray = np.array([])
+        self.screened: ndarray = np.array([])
+        self.healed: ndarray = np.array([])
+        self.removed: ndarray = np.array([])
+        self.current_time: int = 0
+        self.time = []

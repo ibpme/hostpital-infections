@@ -19,7 +19,7 @@ class Patient:
         - Colonisation status, which includes two states: (0) susceptible and colonised (1).
         - Detection status, which contains three states: undetected (0),screened but awaiting result(2), and detected (1).
         - Decolonisation treatment status, which has two states: receiving decolonisation treatment (1) and not receiving decolonisation treatment (0).
-        - Location status, that is, which bay or isolation bed. (Bay) 
+        - Location status, that is, which bay or isolation bed. (Bay)
         """
         Patient.num_of_patients += 1
         self.id = Patient.num_of_patients
@@ -91,9 +91,9 @@ class Patient:
 
     def check_healed(self, prob=0.9):
         """
-        This function will heal the paient given a probability 
+        This function will heal the paient given a probability
         for patient to recover from the disease and discharged.
-        Note : Giving treament should be a increasing probability with respect to 
+        Note : Giving treament should be a increasing probability with respect to
         the time patients is in the ward
         """
         healed = np.random.choice([1, 0], p=[prob, 1-prob])
@@ -131,29 +131,48 @@ class Patient:
 class PatientGenerator:
 
     def __init__(self, poisson_lambda=None, gamma_k=None, gamma_scale=None, colonized_prob=None) -> None:
-        """Generate list of patients with specific attributes and probability distributions 
+        """Generate list of patients with specific attributes and probability distributions
         """
-        self._poisson_lambda = poisson_lambda
-        self._gamma_k = gamma_k
-        self._gamma_scale = gamma_scale
-        self._colonized_prob = colonized_prob
-        self.primary_cases = []
+        self.poisson_lambda = poisson_lambda
+        self.gamma_k = gamma_k
+        self.gamma_scale = gamma_scale
+        self.colonized_prob = colonized_prob
+        self.use_col_dist = False
+        self.col_gamma_k = None
+        self.col_gamma_scale = None
         self.reset_history()
 
+    def set_col_length_dist(self, gamma_k=None, gamma_scale=None):
+        """Set the colonized patient length of stay distributions to use a different distribution
+        from the uncolonized patient
+
+        Parameters
+        ----------
+        gamma_k : float, optional
+        gamma_scale : float, optional
+
+        Raises
+        ------
+        ValueError
+            Invalid gamma distribution
+        """
+        self.use_col_dist = True
+        if not gamma_k or not gamma_scale:
+            raise ValueError("Invalid gamma_k and gamma_scale")
+        self.col_gamma_k = gamma_k
+        self.col_gamma_scale = gamma_scale
+
     def reset_history(self):
-        self.history = {
-            "admission_sequence": np.array([]),
-            "length_stay_dist": np.array([], dtype=int),
-            "colonized_sequence": np.array([], dtype=int),
-        }
+        self.admission_dist: List[int] = []
+        self.length_stay_dist: List[int] = []
 
     def set_var(self, poisson_lambda=3, gamma_k=5, gamma_scale=1):
         """Set variable for admission rate (poisson distribution
         and length of stay (gamma distribution)
         """
-        self._poisson_lambda = poisson_lambda
-        self._gamma_k = gamma_k
-        self._gamma_scale = gamma_scale
+        self.poisson_lambda = poisson_lambda
+        self.gamma_k = gamma_k
+        self.gamma_scale = gamma_scale
 
     def generate(self, colonized_prob: float = None) -> List[Patient]:
         """Generate list of patients to be admited to the ward usually in one time unit
@@ -173,17 +192,27 @@ class PatientGenerator:
             list of patients
         """
         if not colonized_prob and colonized_prob != 0:
-            colonized_prob = self._colonized_prob
+            colonized_prob = self.colonized_prob
 
-        num_admit_patients = np.random.poisson(self._poisson_lambda)
-        length_stay_sequence = np.random.gamma(
-            self._gamma_k, scale=self._gamma_scale, size=num_admit_patients)
-        colonized_status_sequence = np.random.choice(
-            [1, 0], p=[colonized_prob, 1-colonized_prob], size=num_admit_patients)
         patients_array = []
-        for status, length_stay in zip(colonized_status_sequence, length_stay_sequence):
+
+        # Get the number of patients admited in a day
+        num_admit_patients = np.random.poisson(self.poisson_lambda)
+
+        for _ in range(num_admit_patients):
+            # Generate the patient infection status
+            colonized_status = np.random.choice(
+                [1, 0], p=[colonized_prob, 1-colonized_prob])
+            # Get the patients length of stay from the gamma distribution
+            if colonized_status and self.use_col_dist:
+                length_stay = np.random.gamma(
+                    self.col_gamma_k, scale=self.col_gamma_scale)
+            else:
+                length_stay = np.random.gamma(
+                    self.gamma_k, scale=self.gamma_scale)
+            # Generate the patients
             patients_array.append(
-                Patient(colonisation_status=status, length_stay=length_stay))
+                Patient(colonisation_status=colonized_status, length_stay=length_stay))
         return patients_array
 
     def generate_sequence(self, colonized_prob: float = None, time=350) -> List[List[Patient]]:
@@ -200,26 +229,22 @@ class PatientGenerator:
             sequence of list of patients
         """
         if not colonized_prob and colonized_prob != 0:
-            colonized_prob = self._colonized_prob
+            colonized_prob = self.colonized_prob
+        # Get the patients for each day
         patient_sequence = [self.generate(
             colonized_prob=colonized_prob) for _ in range(time)]
-        primary_cases = []
         for patient_arr in patient_sequence:
-            self.history["admission_sequence"] = np.append(
-                self.history["admission_sequence"], len(patient_arr))
-            self.history["length_stay_dist"] = np.append(self.history["length_stay_dist"], [
-                patient.length_stay for patient in patient_arr])
-        for patient_admit in patient_sequence:
-            for patient in patient_admit:
-                if patient.colonisation_status == 1:
-                    primary_cases.append(patient)
-        self.primary_cases = primary_cases
+            self.admission_dist.append(len(patient_arr))
+            for patient in patient_arr:
+                self.length_stay_dist.append(patient.length_stay)
         return patient_sequence
 
     def show_admit(self):
         """Show admission rate distribution"""
-        dist_pos = self.history["admission_sequence"]
-        plt.hist(dist_pos, weights=np.ones(dist_pos.size)/dist_pos.size)
+        dist_pos = self.admission_dist
+        size = np.array(dist_pos, dtype=object).size
+        print(size)
+        plt.hist(dist_pos, weights=np.ones(size)/size)
         plt.title("Poisson Discrete")
         plt.xlabel("Num of patient admited each day")
         plt.ylabel("Probability distribution")
@@ -227,8 +252,10 @@ class PatientGenerator:
 
     def show_length_stay(self):
         """Show length of stay distribution"""
-        dist_gamma = self.history["length_stay_dist"]
-        plt.hist(dist_gamma, weights=np.ones(dist_gamma.size)/dist_gamma.size)
+        dist_gamma = self.length_stay_dist
+        size = np.array(dist_gamma, dtype=object).size
+        print(size)
+        plt.hist(dist_gamma, weights=np.ones(size)/size)
         plt.title("Gamma Distribution")
         plt.xlabel("Length of stay ")
         plt.ylabel("Probability distribution")

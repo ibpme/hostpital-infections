@@ -16,6 +16,8 @@ class Ward:
         self.bays = bays
         self.params = params
         # Dynamic Atributes in ward for Patients Status
+        self.primary_cases = 0
+        self.secondary_cases = 0
         self.new_patients: List[Patient] = []
         self.new_infections: List[Patient] = []
         self.screened_patients: List[Patient] = []
@@ -93,7 +95,7 @@ class Ward:
                 col_patients += patient.colonisation_status
         return col_patients
 
-    def admit_patient(self, patient):
+    def admit_patient(self, patient: Patient):
         """Method for admiting patient.
         We use this, globally when admiting patients without worrying about
         how the patient is admited.
@@ -117,12 +119,14 @@ class Ward:
                 # Isolation bay probability
                 if np.random.choice([1, 0], p=[prob, 1-prob]):
                     bay.add_patient(patient)
-                    return patient
                 else:
                     continue
             else:
                 bay.add_patient(patient)
-                return patient
+            # Check if patient is infected on admission 
+            if patient.colonisation_status:
+                self.primary_cases += 1
+            return patient
         else:
             # All bays are full / not available
             return None
@@ -224,6 +228,7 @@ class Ward:
                     break
             continue
         self.new_infections = new_infections
+        self.secondary_cases += len(new_infections)
         return
 
     def generate_treatment(self, discharge_healed=True):
