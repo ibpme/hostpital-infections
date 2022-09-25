@@ -63,6 +63,8 @@ class Patient:
         return
 
     def screen_test(self, length=3, interval=4):
+        # ? Is it possible to make test lenght not bounded by interval ?
+        # ? ^^^ This needs to make multiple hidden detection status for the patient
         """Apply screening process to patient with a certain interval with (length) of time until result"""
         if length >= interval:
             raise Exception("Length of test cannot be greater than interval")
