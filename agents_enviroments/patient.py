@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 if TYPE_CHECKING:
-    from .bay import IsolationBay, Bay
+    from .bay import Bay
 
 
 class Patient:

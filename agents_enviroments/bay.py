@@ -23,6 +23,10 @@ class Bay:
         """Check is the bay is at full capacity"""
         return len(self.patients) == self.capacity
 
+    @property
+    def is_isobay(self):
+        return isinstance(self, IsolationBay)
+
     def add_patient(self, patient):
         from .patient import Patient
         if not isinstance(patient, Patient):
@@ -40,10 +44,6 @@ class Bay:
             raise TypeError(f"{type(patient)} is not of Patient Type")
         self.patients.remove(patient)
         return
-
-    @property
-    def is_isobay(self):
-        return isinstance(self, IsolationBay)
 
 
 class IsolationBay(Bay):

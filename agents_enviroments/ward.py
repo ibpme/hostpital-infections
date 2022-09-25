@@ -245,6 +245,8 @@ class Ward:
         This might change the patient detection status
          """
         screened_patients = []
+        result_time = self.params.result_time
+        screen_interval = self.params.screen_interval
         for bay in self.bays:
             for patient in bay.patients:
                 screened_patient = patient.screen_test()
@@ -263,6 +265,9 @@ class Ward:
                 if detected:
                     detected_patients.append(detected)
         self.new_detected_patients = detected_patients
+
+    def move_patients(self, movement_strategy: MovementStrategy):
+        movement_strategy.move_patients(self)
 
     def forward_time(self):
         """Forward all patient time"""
@@ -294,6 +299,3 @@ class Ward:
                 {bay_key: {"Patients": bay.num_of_patients, "Capacity": bay.capacity}})
         stats.update({"Total": self.total_patients, "Capacity": self.capacity})
         return stats
-
-    def move_patients(self, movement_strategy: MovementStrategy):
-        movement_strategy.move_patients(self)
