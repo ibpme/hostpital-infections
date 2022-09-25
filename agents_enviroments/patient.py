@@ -39,6 +39,7 @@ class Patient:
         self.result_time = None
         # Treatment Probability
         self.treatment_prob = 0.3
+        self.treatment_time = None
 
     @property
     def remaining_stay(self):
@@ -61,7 +62,7 @@ class Patient:
             return self
         return
 
-    def screen_test(self, length=2, interval=3):
+    def screen_test(self, length=3, interval=4):
         """Apply screening process to patient with a certain interval with (length) of time until result"""
         if length >= interval:
             raise Exception("Length of test cannot be greater than interval")
@@ -84,10 +85,11 @@ class Patient:
             self.detection_status = self.hidden_detection_status
             self.result_time = None
             self.hidden_detection_status = None
-            return self
+            if self.detection_status == 1:
+                return self
         return False
 
-    def give_treatment(self, prob=0.6):
+    def check_healed(self, prob=0.9):
         """
         This function will heal the paient given a probability 
         for patient to recover from the disease and discharged.
@@ -98,7 +100,18 @@ class Patient:
         if healed:
             self.colonisation_status = 0
             self.detection_status = 0
-        return self
+        return healed
+
+    def give_treatment(self, treatment_prob):
+        if self.treatment_time is not None:
+            if self.treatment_time == 0:
+                if self.check_healed(treatment_prob):
+                    return self
+            else:
+                self.treatment_time -= 1
+        else:
+            self.treatment_time = 5
+        return None
 
     def __repr__(self):
         if self.location:
@@ -124,6 +137,7 @@ class PatientGenerator:
         self._gamma_k = gamma_k
         self._gamma_scale = gamma_scale
         self._colonized_prob = colonized_prob
+        self.primary_cases = []
         self.reset_history()
 
     def reset_history(self):
@@ -172,7 +186,7 @@ class PatientGenerator:
                 Patient(colonisation_status=status, length_stay=length_stay))
         return patients_array
 
-    def generate_sequence(self, colonized_prob: float = None, time=350) -> List[Patient]:
+    def generate_sequence(self, colonized_prob: float = None, time=350) -> List[List[Patient]]:
         """Generate list of patients to be admited to the ward inside sequence 
 
         Parameters
@@ -189,11 +203,17 @@ class PatientGenerator:
             colonized_prob = self._colonized_prob
         patient_sequence = [self.generate(
             colonized_prob=colonized_prob) for _ in range(time)]
+        primary_cases = []
         for patient_arr in patient_sequence:
             self.history["admission_sequence"] = np.append(
                 self.history["admission_sequence"], len(patient_arr))
             self.history["length_stay_dist"] = np.append(self.history["length_stay_dist"], [
                 patient.length_stay for patient in patient_arr])
+        for patient_admit in patient_sequence:
+            for patient in patient_admit:
+                if patient.colonisation_status == 1:
+                    primary_cases.append(patient)
+        self.primary_cases = primary_cases
         return patient_sequence
 
     def show_admit(self):

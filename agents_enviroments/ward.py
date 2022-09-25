@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List
+from agents_enviroments.movement_strategy import MovementStrategy
 from agents_enviroments.parameters import Parameters
 import numpy as np
 
@@ -22,6 +23,10 @@ class Ward:
         self.patients_removed: List[Patient] = []
         self.healed_patients: List[Patient] = []
         self.time = 0
+
+    @property
+    def isobays(self) -> List[Bay]:
+        return [bay for bay in self.bays if bay.is_isobay]
 
     @property
     def capacity(self):
@@ -112,7 +117,9 @@ class Ward:
                 # Isolation bay probability
                 if np.random.choice([1, 0], p=[prob, 1-prob]):
                     bay.add_patient(patient)
-                    return True
+                    return patient
+                else:
+                    continue
             else:
                 bay.add_patient(patient)
                 return patient
@@ -152,19 +159,6 @@ class Ward:
                     patients_removed.append(patient)
         self.patients_removed = patients_removed
         return patients_removed
-
-    def change_patient_location(self, patient: Patient, new_bay: Bay):
-        """Change patients location from one bay to another"""
-        from .patient import Patient
-        if not isinstance(patient, Patient):
-            raise TypeError(f"{type(patient)} is not of Patient Type")
-        if not isinstance(new_bay, Bay):
-            raise TypeError(f"{type(new_bay)} is not of Bay Type")
-        old_bay = patient.location
-        old_bay.remove_patient(patient)
-        new_bay.add_patient(patient)
-
-        return
 
     def transmission_prob(self, patient_c: Patient, patient_s: Patient):
         """Transmission probabilty given a suceptible and colonised Patient pair"""
@@ -232,7 +226,7 @@ class Ward:
         self.new_infections = new_infections
         return
 
-    def generate_treatment(self):
+    def generate_treatment(self, discharge_healed=True):
         """Generate treatment for each patient and remove if patient is healed"""
         healed_patients = []
         for bay in self.bays:
@@ -240,7 +234,10 @@ class Ward:
                 if patient.detection_status == 1:
                     healed = patient.give_treatment(self.params.treatment_prob)
                     if healed:
+                        # Should patient be removed if healed ?
                         healed_patients.append(healed)
+                        if discharge_healed:
+                            healed.location.remove_patient(healed)
         self.healed_patients = healed_patients
 
     def screen_patients(self):
@@ -263,7 +260,8 @@ class Ward:
         for bay in self.bays:
             for patient in bay.patients:
                 detected = patient.get_result()
-                detected_patients.append(detected)
+                if detected:
+                    detected_patients.append(detected)
         self.new_detected_patients = detected_patients
 
     def forward_time(self):
@@ -297,8 +295,5 @@ class Ward:
         stats.update({"Total": self.total_patients, "Capacity": self.capacity})
         return stats
 
-    def move_patients(self):
-        # Make a movement strategy for the patients
-        for bay in self.bays:
-            for patient in bay.patients:
-                pass
+    def move_patients(self, movement_strategy: MovementStrategy):
+        movement_strategy.move_patients(self)

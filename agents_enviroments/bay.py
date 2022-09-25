@@ -41,6 +41,10 @@ class Bay:
         self.patients.remove(patient)
         return
 
+    @property
+    def is_isobay(self):
+        return isinstance(self, IsolationBay)
+
 
 class IsolationBay(Bay):
     num_of_isobays = 0
@@ -52,6 +56,6 @@ class IsolationBay(Bay):
 
 if __name__ == "__main__":
     print("Testing module")
-    print(Bay())
-    print(IsolationBay())
+    print(Bay().is_isobay)
+    print(IsolationBay().is_isobay)
     print("Done")
