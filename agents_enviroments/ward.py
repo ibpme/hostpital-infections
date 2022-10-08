@@ -249,17 +249,18 @@ class Ward:
         self.healed_patients = healed_patients
 
     def screen_patients(self):
-        # ! TODO : WHY THE FUCK DOES MORE SCREENING CAUSES MORE INFECTIONS FOR INTERVAL IN 7 6 5 and WEIRD BEHAVIOUR COMES UP IN 4
+        # TODO : WHY THE FUCK DOES MORE SCREENING CAUSES MORE INFECTIONS FOR INTERVAL IN 7 6 5 and
+        # !WEIRD BEHAVIOUR COMES UP in interval 4 (SOMEHOW WORSE THAN INTERVAL > 5)
         """Screen each patient in ward is patient is not screened yet
         This might change the patient detection status
          """
         screened_patients = []
-        result_time = self.params.result_time
+        result_length = self.params.result_length
         screen_interval = self.params.screen_interval
         for bay in self.bays:
             for patient in bay.patients:
                 screened_patient = patient.screen_test(
-                    length=result_time, interval=screen_interval)
+                    length=result_length, interval=screen_interval)
                 if screened_patient:
                     screened_patients.append(screened_patient)
         self.screened_patients = screened_patients

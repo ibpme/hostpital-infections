@@ -9,5 +9,5 @@ class Parameters:
     k: float
     treatment_prob: float
     isolation_prob: float
-    result_time: int
+    result_length: int
     screen_interval: int
