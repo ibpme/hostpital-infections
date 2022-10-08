@@ -57,7 +57,7 @@ class Patient:
         """Infect the patient and change colonisation status with a probability"""
         if self.colonisation_status == 1:
             raise Exception("Patient already colonised")
-        self.colonisation_status = np.random.choice([1, 0], p=[prob, 1-prob])
+        self.colonisation_status = np.random.choice([1, 0], p=[prob, 1 - prob])
         if self.colonisation_status:
             return self
         return
@@ -68,7 +68,7 @@ class Patient:
         """Apply screening process to patient with a certain interval with (length) of time until result"""
         if length >= interval:
             raise Exception("Length of test cannot be greater than interval")
-        if (self.time == length, self.time % interval == 0) and self.time > 0:
+        if (self.time == length or self.time % interval == 0) and self.time > 0:
             # If patient have not been screened
             if self.detection_status != 2:
                 self.result_time = self.time + length
@@ -98,7 +98,7 @@ class Patient:
         Note : Giving treament should be a increasing probability with respect to
         the time patients is in the ward
         """
-        healed = np.random.choice([1, 0], p=[prob, 1-prob])
+        healed = np.random.choice([1, 0], p=[prob, 1 - prob])
         if healed:
             self.colonisation_status = 0
             self.detection_status = 0
@@ -204,7 +204,7 @@ class PatientGenerator:
         for _ in range(num_admit_patients):
             # Generate the patient infection status
             colonized_status = np.random.choice(
-                [1, 0], p=[colonized_prob, 1-colonized_prob])
+                [1, 0], p=[colonized_prob, 1 - colonized_prob])
             # Get the patients length of stay from the gamma distribution
             if colonized_status and self.use_col_dist:
                 length_stay = np.random.gamma(
@@ -246,7 +246,7 @@ class PatientGenerator:
         dist_pos = self.admission_dist
         size = np.array(dist_pos, dtype=object).size
         print(size)
-        plt.hist(dist_pos, weights=np.ones(size)/size)
+        plt.hist(dist_pos, weights=np.ones(size) / size)
         plt.title("Poisson Discrete")
         plt.xlabel("Num of patient admited each day")
         plt.ylabel("Probability distribution")
@@ -257,7 +257,7 @@ class PatientGenerator:
         dist_gamma = self.length_stay_dist
         size = np.array(dist_gamma, dtype=object).size
         print(size)
-        plt.hist(dist_gamma, weights=np.ones(size)/size)
+        plt.hist(dist_gamma, weights=np.ones(size) / size)
         plt.title("Gamma Distribution")
         plt.xlabel("Length of stay ")
         plt.ylabel("Probability distribution")

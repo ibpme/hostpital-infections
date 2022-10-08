@@ -31,6 +31,10 @@ class Ward:
         return [bay for bay in self.bays if bay.is_isobay]
 
     @property
+    def non_isobays(self) -> List[Bay]:
+        return [bay for bay in self.bays if not bay.is_isobay]
+
+    @property
     def capacity(self):
         """Total ward capacity"""
         total_capacity = 0
@@ -117,13 +121,13 @@ class Ward:
             if isinstance(bay, IsolationBay):
                 prob = self.params.isolation_prob
                 # Isolation bay probability
-                if np.random.choice([1, 0], p=[prob, 1-prob]):
+                if np.random.choice([1, 0], p=[prob, 1 - prob]):
                     bay.add_patient(patient)
                 else:
                     continue
             else:
                 bay.add_patient(patient)
-            # Check if patient is infected on admission 
+            # Check if patient is infected on admission
             if patient.colonisation_status:
                 self.primary_cases += 1
             return patient
@@ -197,19 +201,20 @@ class Ward:
             same_bay = False
 
         if not col_detected and same_bay:
-            lambda_t = C*V*((m/(n_bay-1)) + ((1-m)/(n_ward-1)))
+            lambda_t = C * V * ((m / (n_bay - 1)) + ((1 - m) / (n_ward - 1)))
         if not col_detected and not same_bay:
-            lambda_t = C*V*((1-m)/(n_ward-1))
+            lambda_t = C * V * ((1 - m) / (n_ward - 1))
         if col_detected and same_bay:
-            lambda_t = C*V*k*((m/(n_bay-1)) + ((1-m)/(n_ward-1)))
+            lambda_t = C * V * k * \
+                ((m / (n_bay - 1)) + ((1 - m) / (n_ward - 1)))
         if col_detected and not same_bay:
-            lambda_t = C*V*k*((1-m)/(n_ward-1))
+            lambda_t = C * V * k * ((1 - m) / (n_ward - 1))
         return lambda_t
 
     @staticmethod
     def exp_trans_prob(lambda_t):
         """Exponential form of probability function"""
-        return 1-np.math.exp(-lambda_t)
+        return 1 - np.math.exp(-lambda_t)
 
     def generate_transmission(self):
         """Generate the transmission reaction for each patient inside the ward.
@@ -254,7 +259,8 @@ class Ward:
         screen_interval = self.params.screen_interval
         for bay in self.bays:
             for patient in bay.patients:
-                screened_patient = patient.screen_test()
+                screened_patient = patient.screen_test(
+                    length=result_time, interval=screen_interval)
                 if screened_patient:
                     screened_patients.append(screened_patient)
         self.screened_patients = screened_patients
@@ -299,7 +305,7 @@ class Ward:
         """Show current patients capacity"""
         stats = {}
         for i, bay in enumerate(self.bays):
-            bay_key = "Bay-{}".format(i+1)
+            bay_key = "Bay-{}".format(i + 1)
             stats.update(
                 {bay_key: {"Patients": bay.num_of_patients, "Capacity": bay.capacity}})
         stats.update({"Total": self.total_patients, "Capacity": self.capacity})

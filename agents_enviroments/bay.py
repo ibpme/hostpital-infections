@@ -27,6 +27,30 @@ class Bay:
     def is_isobay(self):
         return isinstance(self, IsolationBay)
 
+    @property
+    def detected(self):
+        detected_patients = []
+        for patient in self.patients:
+            if patient.detection_status == 1:
+                detected_patients.append(patient)
+        return detected_patients
+
+    @property
+    def undetected(self):
+        undetected_patients = []
+        for patient in self.patients:
+            if patient.detection_status != 1:
+                undetected_patients.append(patient)
+        return undetected_patients
+
+    @property
+    def num_of_detected(self):
+        return len(self.detected)
+
+    @property
+    def num_of_undetected(self):
+        return len(self.undetected)
+
     def add_patient(self, patient):
         from .patient import Patient
         if not isinstance(patient, Patient):
