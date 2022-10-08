@@ -191,8 +191,7 @@ class Ward:
 
         s_bay = patient_s.location
         c_bay = patient_c.location
-        # this redundancy is needed to avoid detecting patient awaiting result
-        col_detected = patient_c.detection_status == 0
+        col_detected = bool(patient_c.decolonisation_status == 1)
 
         if s_bay == c_bay:
             n_bay = len(patient_s.location.patients)
@@ -244,13 +243,13 @@ class Ward:
                 if patient.detection_status == 1:
                     healed = patient.give_treatment(self.params.treatment_prob)
                     if healed:
-                        # Should patient be removed if healed ?
                         healed_patients.append(healed)
                         if discharge_healed:
                             healed.location.remove_patient(healed)
         self.healed_patients = healed_patients
 
     def screen_patients(self):
+        # ! TODO : WHY THE FUCK DOES MORE SCREENING CAUSES MORE INFECTIONS FOR INTERVAL IN 7 6 5 and WEIRD BEHAVIOUR COMES UP IN 4
         """Screen each patient in ward is patient is not screened yet
         This might change the patient detection status
          """

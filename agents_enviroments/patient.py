@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, List
 __author__ = "Iman-Budi Pranakasih (10118004)"
+from copy import copy
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -26,19 +27,17 @@ class Patient:
         self.colonisation_status = colonisation_status
         self.detection_status = detection_status
         self.decolonisation_status = decolonisation_status
-        # self.hidden_detection_status = None
+        # Hidden detection are use to store patient colonization stateat screening time
+        self.hidden_detection_status = None
         self.location = None
         # According to the paper this will have an inital gamma distribution and will change as each time interval passes.
         # Used to avoid 0 time length of stay
-        if length_stay == 0:
-            length_stay = 1
         self.length_stay = length_stay
         # Time is length of patient stay after admission
         self.time = 0
         # Time after screening/testing
         self.result_time = None
-        # Treatment Probability
-        self.treatment_prob = 0.3
+        # Treatment time
         self.treatment_time = None
 
     @property
@@ -63,33 +62,47 @@ class Patient:
         return
 
     def screen_test(self, length=3, interval=4):
-        # ? Is it possible to make test lenght not bounded by interval ?
-        # ? ^^^ This needs to make multiple hidden detection status for the patient
+        # ? Is it possible to make test length not bounded by interval ?
+        # ? ^^^  Needs multiple hidden detection status for the patient
         """Apply screening process to patient with a certain interval with (length) of time until result"""
         if length >= interval:
-            raise Exception("Length of test cannot be greater than interval")
-        if (self.time == length or self.time % interval == 0) and self.time > 0:
-            # If patient have not been screened
-            if self.detection_status != 2:
-                self.result_time = self.time + length
-                self.detection_status = 2
-                # Test 100% sensitivity (hidden detection is set to remember the state of colonized patient)
-                self.hidden_detection_status = self.colonisation_status
-                return self
-        return False
+            raise Exception(
+                "Length of test cannot be greater or equal to interval")
+        # Check if patient has been screened and awaiting result
+        if self.detection_status == 2:
+            # Don't screen patient again
+            return None
+        # If patient have not been screened with
+        # Patient are screened at least one day after admission
+        # and are screened every interval days
+        # If patient is scheduled for screening and not yet detected
+        if(self.time % interval == 1 and self.detection_status == 0):
+            # Assign when patient will get result and set detection status
+            self.result_time = self.time + length
+            self.detection_status = 2
+            # Test 100% sensitivity
+            # (Hidden detection is set to remember the state of colonized patient)
+            self.hidden_detection_status = self.colonisation_status
+            return self
+        return None
 
     def get_result(self):
         """Get result of each screened patient"""
-        if not self.result_time:
-            return False
-        # Check if result time is due
-        if self.result_time - self.time == 0:
-            self.detection_status = self.hidden_detection_status
-            self.result_time = None
-            self.hidden_detection_status = None
-            if self.detection_status == 1:
-                return self
-        return False
+        # Check if patient has been screened/tested
+        if self.detection_status == 2:
+            # Check if patient result time is met
+            if self.result_time == self.time:
+                # Assign result (hidden_detection_status) to patient
+                self.detection_status = self.hidden_detection_status
+                self.result_time = None
+                self.hidden_detection_status = None
+                # If detected assign treatment and colonisation_status
+                if self.detection_status == 1:
+                    self.colonisation_status = 1
+                    self.decolonisation_status = 1
+                    return self
+        #  Dont return if not yet screened or not yet detected
+        return None
 
     def check_healed(self, prob=0.9):
         """
@@ -102,6 +115,7 @@ class Patient:
         if healed:
             self.colonisation_status = 0
             self.detection_status = 0
+            self.decolonisation_status = 0
         return healed
 
     def give_treatment(self, treatment_prob):
