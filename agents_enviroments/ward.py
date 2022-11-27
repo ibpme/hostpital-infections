@@ -67,6 +67,18 @@ class Ward:
         return col_patients
 
     @property
+    def detected_patients(self) -> List[Patient]:
+        """Colonized patients inside bays in ward (detected)"""
+        det_patients = []
+        if not self.bays:
+            return det_patients
+        for bay in self.bays:
+            for patient in bay.patients:
+                if patient.detection_status == 1:
+                    det_patients.append(patient)
+        return det_patients
+
+    @property
     def total_new_infections(self):
         return len(self.new_infections)
 
@@ -249,8 +261,6 @@ class Ward:
         self.healed_patients = healed_patients
 
     def screen_patients(self):
-        # TODO : WHY THE FUCK DOES MORE SCREENING CAUSES MORE INFECTIONS FOR INTERVAL IN 7 6 5 and
-        # !WEIRD BEHAVIOUR COMES UP in interval 4 (SOMEHOW WORSE THAN INTERVAL > 5)
         """Screen each patient in ward is patient is not screened yet
         This might change the patient detection status
          """

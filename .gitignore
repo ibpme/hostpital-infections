@@ -1,3 +1,7 @@
 .vscode
 playground.ipynb
 __pycache__
+.pytest*
+*.csv
+*.png
+distribution_test.ipynb
